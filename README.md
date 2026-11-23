@@ -1,5 +1,7 @@
 # ESC-10 Environmental Sound Classifier: an end-to-end MLOps pipeline
 
+**Crafted by Aime Igirimpuhwe** ([@igaimerca](https://github.com/igaimerca)).
+
 Classify a 5-second audio clip into one of 10 everyday sounds (chainsaw, clock tick, crackling fire, crying baby, dog, helicopter, rain, rooster, sea waves, sneezing). The project covers data acquisition, preprocessing, model training and evaluation, an API, a web dashboard with upload and one-click retraining, Docker deployment and a Locust load test.
 
 | | |
