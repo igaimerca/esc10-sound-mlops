@@ -7,7 +7,7 @@ Classify a 5-second audio clip into one of 10 everyday sounds (chainsaw, clock t
 | | |
 |---|---|
 | **Live app** | http://102.37.114.74 (Azure VM, plain http) |
-| **Video demo** | `<PASTE YOUTUBE LINK HERE>` |
+| **Video demo** | https://youtu.be/CY8Ohvrw36I |
 | **GitHub** | https://github.com/igaimerca/esc10-sound-mlops |
 
 ## Results at a glance
