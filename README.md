@@ -1,20 +1,12 @@
----
-title: ESC-10 Sound Classifier
-emoji: 🔊
-sdk: docker
-app_port: 8000
-pinned: false
----
-
 # ESC-10 Environmental Sound Classifier: an end-to-end MLOps pipeline
 
 Classify a 5-second audio clip into one of 10 everyday sounds (chainsaw, clock tick, crackling fire, crying baby, dog, helicopter, rain, rooster, sea waves, sneezing). The project covers data acquisition, preprocessing, model training and evaluation, an API, a web dashboard with upload and one-click retraining, Docker deployment and a Locust load test.
 
 | | |
 |---|---|
-| **Live app** | `<PASTE PUBLIC URL HERE>` |
+| **Live app** | http://102.37.114.74 (Azure VM, plain http) |
 | **Video demo** | `<PASTE YOUTUBE LINK HERE>` |
-| **GitHub** | `<PASTE REPO URL HERE>` |
+| **GitHub** | https://github.com/igaimerca/esc10-sound-mlops |
 
 ## Results at a glance
 
@@ -89,7 +81,9 @@ The repository already contains the trained model and the data, so the app start
 docker compose up --build --scale api=3   # nginx load balancer on http://localhost:8080
 ```
 
-**Public deployment (Hugging Face Spaces, free):** create a new Space with the **Docker** SDK, push this repository to it (the YAML block at the top of this README configures it), and open the Space URL. A Space has 16 GB of RAM, which this app needs: the container uses about 0.5 GB when idle and about 1.3 GB while retraining, so Render's 512 MB plans are too small. Files written inside a free Space (uploads, retrained versions) are lost when the Space restarts.
+**Live deployment (Microsoft Azure):** the same Docker stack runs on an Ubuntu 24.04 VM (Standard_B2ls_v2: 2 vCPU, 4 GB RAM, South Africa North) with Docker Compose, 2 API containers and an nginx load balancer on port 80. The VM was provisioned with `az vm create` and a cloud-init script that installs Docker, clones this repository and runs `docker compose up --scale api=2`. The container uses about 0.5 GB of RAM when idle and about 1.3 GB while retraining, so 512 MB free tiers are too small. Uploaded files and retrained versions live in Docker volumes shared by the containers.
+
+To run the same thing anywhere with Docker: `docker compose up --build --scale api=3`, then open http://localhost:8080. Without a cloud account, `scripts/public_url.sh` exposes a local run on a temporary https URL through a Cloudflare tunnel.
 
 ## Flood request simulation (Locust)
 
@@ -111,6 +105,7 @@ How to read it:
 ## Limitations
 
 - 80 test clips, so one clip is 1.25 points of accuracy; validation (93.8%) is an optimistic estimate because the model was selected on it.
+- Training is not deterministic: the same configuration scored 0.935 and 0.912 validation F1 with two seeds, so differences of 2 points between experiments are within noise.
 - Closed-set: any sound is forced into one of 10 classes.
 - Training clips are Freesound recordings; real microphones will differ.
 - Uploaded labels are trusted. A wrong label will degrade the model, and the validation gate is the only protection.
