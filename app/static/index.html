@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sound Classifier</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#16202a;--muted:#5b6773;--line:#e2e6ea;--accent:#2563eb;--ok:#15803d;--bad:#b91c1c;--warn:#b45309}
+@media (prefers-color-scheme:dark){:root{--bg:#0f141a;--card:#171e26;--ink:#e8edf2;--muted:#9aa7b4;--line:#27313c;--accent:#60a5fa;--ok:#4ade80;--bad:#f87171;--warn:#fbbf24}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif}
+header{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center;justify-content:space-between;padding:14px 20px;background:var(--card);border-bottom:1px solid var(--line)}
+h1{font-size:18px;margin:0}
+.status{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13px;color:var(--muted)}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--bad);margin-right:6px}
+.dot.up{background:var(--ok)}
+nav{display:flex;gap:4px;padding:10px 20px 0;overflow-x:auto}
+nav button{border:0;background:none;color:var(--muted);padding:8px 14px;font:inherit;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}
+nav button.on{color:var(--ink);border-color:var(--accent);font-weight:600}
+main{max-width:1100px;margin:0 auto;padding:16px 20px 48px}
+section{display:none}section.on{display:block}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px;margin-bottom:16px}
+.card h2{font-size:16px;margin:0 0 4px}.card p.sub{margin:0 0 14px;color:var(--muted);font-size:13px}
+.grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+button.primary{background:var(--accent);color:#fff;border:0;border-radius:7px;padding:9px 16px;font:inherit;cursor:pointer}
+button.primary:disabled{opacity:.5;cursor:not-allowed}
+input[type=file],select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:8px;max-width:100%}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.bar{display:flex;align-items:center;gap:10px;margin:6px 0;font-size:14px}
+.bar .name{width:120px}.bar .track{flex:1;height:10px;background:var(--line);border-radius:5px;overflow:hidden}
+.bar .fill{height:100%;background:var(--accent)}
+.big{font-size:28px;font-weight:700}
+.muted{color:var(--muted)}.ok{color:var(--ok)}.bad{color:var(--bad)}.warn{color:var(--warn)}
+table{border-collapse:collapse;width:100%;font-size:13px}th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left}
+.metric{display:inline-block;margin:0 22px 8px 0}.metric b{display:block;font-size:22px}
+canvas{max-height:300px}
+.story{font-size:14px;color:var(--muted);margin:10px 0 0}
+.log{white-space:pre-wrap;font-size:13px;background:var(--bg);border-radius:7px;padding:10px;margin-top:10px}
+.cm td{text-align:center;padding:4px 6px}.cm th{font-weight:500}
+</style>
+</head>
+<body>
+<header>
+  <h1>Environmental Sound Classifier</h1>
+  <div class="status">
+    <span><span class="dot" id="dot"></span><span id="state">checking...</span></span>
+    <span>Uptime <b id="uptime">-</b></span>
+    <span>Model <b id="mver">-</b></span>
+    <span>Predictions <b id="npred">-</b></span>
+    <span>Pending uploads <b id="pending">-</b></span>
+  </div>
+</header>
+<nav id="tabs">
+  <button data-t="predict" class="on">Predict</button>
+  <button data-t="insights">Data insights</button>
+  <button data-t="retrain">Upload &amp; retrain</button>
+  <button data-t="eval">Model evaluation</button>
+</nav>
+<main>
+<section id="predict" class="on">
+  <div class="card">
+    <h2>Classify one clip</h2>
+    <p class="sub">Upload a .wav file (first 5 seconds are used). The model returns one of 10 sound classes.</p>
+    <div class="row"><input type="file" id="pfile" accept="audio/*"><button class="primary" id="pbtn">Predict</button></div>
+    <audio id="player" controls style="display:none;margin-top:12px;width:100%"></audio>
+    <div id="presult" style="margin-top:14px"></div>
+  </div>
+</section>
+
+<section id="insights">
+  <div class="card"><h2>What the sounds look like</h2><p class="sub">Per-class averages over all 400 clips in the dataset (error bars: one standard deviation across clips).</p></div>
+  <div class="grid">
+    <div class="card"><h2>Active ratio</h2><p class="sub">Share of the clip where loudness is above 10% of its peak</p><canvas id="c_active_ratio"></canvas>
+      <p class="story"><b>Story:</b> rain, helicopter, sea waves and chainsaw fill almost the entire 5 seconds, while sneezing, dog and rooster are short events surrounded by silence. This splits the classes into continuous and impulsive sounds. It is also why the model must be careful with silence padding.</p></div>
+    <div class="card"><h2>Spectral centroid (Hz)</h2><p class="sub">The "centre of mass" of the spectrum, a measure of brightness</p><canvas id="c_spectral_centroid_hz"></canvas>
+      <p class="story"><b>Story:</b> rain is the brightest sound (about 2.7 kHz), while dog, helicopter, rooster and sneezing sit near 1.1-1.2 kHz. Rain is easy to separate from helicopter, but those low-centroid classes overlap, so confusion among them is the most likely.</p></div>
+    <div class="card"><h2>RMS energy</h2><p class="sub">Average loudness of the clip</p><canvas id="c_rms_energy"></canvas>
+      <p class="story"><b>Story:</b> the clock tick is about 10x quieter than the helicopter or chainsaw. Loudness is informative, but the model standardises each clip, so it does not depend on microphone volume.</p></div>
+    <div class="card"><h2>Zero-crossing rate</h2><p class="sub">How often the waveform crosses zero: a proxy for noisiness</p><canvas id="c_zero_crossing_rate"></canvas>
+      <p class="story"><b>Story:</b> noisy, hissing sounds (rain, chainsaw, crying baby) cross zero far more often than tonal or low-frequency ones (helicopter, dog).</p></div>
+  </div>
+  <div class="card"><h2>Clips per class and split</h2><canvas id="c_counts"></canvas></div>
+</section>
+
+<section id="retrain">
+  <div class="grid">
+    <div class="card">
+      <h2>1. Upload new labelled clips</h2>
+      <p class="sub">Select several .wav files that all belong to the same class. They are decoded, normalised to 16 kHz mono 5 s, and stored for retraining.</p>
+      <div class="row"><select id="ulabel"></select><input type="file" id="ufiles" accept="audio/*" multiple></div>
+      <div class="row" style="margin-top:12px"><button class="primary" id="ubtn">Upload</button></div>
+      <div class="log" id="ulog" style="display:none"></div>
+    </div>
+    <div class="card">
+      <h2>2. Retrain</h2>
+      <p class="sub">Fine-tunes the live model on the original training data plus every upload. The new model goes live only if its validation F1 is not worse than the current one. It also starts automatically once <b id="thr">30</b> new clips are waiting.</p>
+      <div class="row"><button class="primary" id="rbtn">Retrain now</button><span id="rstate" class="muted"></span></div>
+      <div class="log" id="rlog" style="display:none"></div>
+    </div>
+  </div>
+  <div class="card"><h2>Retraining history</h2><table id="hist"><thead><tr><th>Version</th><th>Status</th><th>Trigger</th><th>New clips</th><th>Val F1 (old → new)</th><th>Test acc (old → new)</th><th>Finished</th></tr></thead><tbody></tbody></table></div>
+</section>
+
+<section id="eval">
+  <div class="card"><h2>Evaluate the live model</h2><p class="sub">Runs the currently deployed model on the held-out test clips (never used for training or model selection).</p>
+    <button class="primary" id="ebtn">Run evaluation</button><div id="eresult" style="margin-top:14px"></div></div>
+</section>
+</main>
+
+<script>
+const $=id=>document.getElementById(id);
+const fmt=s=>{s=Math.floor(s);const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return (d?d+'d ':'')+(h?h+'h ':'')+m+'m '+s%60+'s'};
+const pct=x=>(x*100).toFixed(1)+'%';
+const j=async(u,o)=>{const r=await fetch(u,o);const b=await r.json().catch(()=>({}));if(!r.ok)throw new Error(b.detail||r.statusText);return b};
+let classes=[];
+
+document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#tabs button,section').forEach(e=>e.classList.remove('on'));
+  b.classList.add('on');$(b.dataset.t).classList.add('on');
+  if(b.dataset.t==='insights')loadInsights();
+  if(b.dataset.t==='retrain')loadRetrain();
+});
+
+async function health(){
+  try{const h=await j('/api/health');
+    $('dot').className='dot up';$('state').textContent='Online';
+    $('uptime').textContent=fmt(h.uptime_seconds);$('mver').textContent='v'+h.model_version;
+    $('npred').textContent=h.predictions_served;$('pending').textContent=h.pending_uploads;$('thr').textContent=h.retrain_threshold;
+  }catch(e){$('dot').className='dot';$('state').textContent='Offline'}
+}
+setInterval(health,5000);health();
+
+$('pbtn').onclick=async()=>{
+  const f=$('pfile').files[0];if(!f)return;
+  const p=$('player');p.src=URL.createObjectURL(f);p.style.display='block';
+  const fd=new FormData();fd.append('file',f);$('pbtn').disabled=true;$('presult').textContent='Predicting...';
+  try{const r=await j('/api/predict',{method:'POST',body:fd});
+    $('presult').innerHTML=`<div class="big">${r.label.replace('_',' ')} <span class="muted" style="font-size:16px">${pct(r.confidence)}</span></div><div class="muted" style="margin-bottom:8px">model v${r.model_version}</div>`+
+    r.top.map(t=>`<div class="bar"><span class="name">${t.label.replace('_',' ')}</span><span class="track"><span class="fill" style="width:${t.confidence*100}%;display:block"></span></span><span>${pct(t.confidence)}</span></div>`).join('');
+  }catch(e){$('presult').innerHTML=`<span class="bad">${e.message}</span>`}
+  $('pbtn').disabled=false;
+};
+
+let charts={};
+async function loadInsights(){
+  if(charts.done)return;
+  const d=await j('/api/insights');const labels=Object.keys(d.features.active_ratio.mean);
+  const pal=getComputedStyle(document.documentElement);const ink=pal.getPropertyValue('--muted');
+  Chart.defaults.color=ink;
+  for(const f of ['active_ratio','spectral_centroid_hz','rms_energy','zero_crossing_rate']){
+    const order=[...labels].sort((a,b)=>d.features[f].mean[a]-d.features[f].mean[b]);
+    new Chart($('c_'+f),{type:'bar',data:{labels:order.map(l=>l.replace('_',' ')),datasets:[{data:order.map(l=>d.features[f].mean[l]),backgroundColor:'#4c78a8'}]},
+      options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{type:f==='rms_energy'?'logarithmic':'linear'}}}});
+  }
+  const splits=['train','val','test'];const col={train:'#4c78a8',val:'#f58518',test:'#54a24b'};
+  new Chart($('c_counts'),{type:'bar',data:{labels:labels.map(l=>l.replace('_',' ')),datasets:splits.map(s=>({label:s,data:labels.map(l=>d.class_counts[l][s]),backgroundColor:col[s]}))},options:{scales:{x:{stacked:true},y:{stacked:true}}}});
+  charts.done=true;
+}
+
+async function loadRetrain(){
+  if(!classes.length){classes=await j('/api/classes');$('ulabel').innerHTML=classes.map(c=>`<option>${c}</option>`).join('')}
+  const s=await j('/api/retrain/status');renderRuns(s);
+}
+function renderRuns(s){
+  $('hist').tBodies[0].innerHTML=s.history.map(r=>{const m=r.metrics;
+    const cls=r.status==='promoted'?'ok':r.status==='failed'?'bad':'warn';
+    return `<tr><td>v${r.version}</td><td class="${cls}">${r.status}</td><td>${r.trigger}</td><td>${r.n_new_files}</td>
+    <td>${m?m.previous.val_f1.toFixed(3)+' → '+m.new.val_f1.toFixed(3):'-'}</td>
+    <td>${m?pct(m.previous.test.accuracy)+' → '+pct(m.new.test.accuracy):'-'}</td><td>${r.finished_at||'running...'}</td></tr>`}).join('')||'<tr><td colspan=7 class="muted">No retraining runs yet</td></tr>';
+  const l=s.latest;
+  if(l){$('rlog').style.display='block';$('rlog').textContent=`v${l.version}: ${l.status}${l.message?' - '+l.message:''}`+(l.metrics?`\nTrained on ${l.metrics.n_train_clips} clips (${l.metrics.n_uploaded_files} uploaded), ${l.metrics.epochs_run} epochs`:'')}
+  const running=l&&l.status==='running';$('rbtn').disabled=running;$('rstate').textContent=running?'Training in progress...':'';
+  return running;
+}
+async function poll(){const s=await j('/api/retrain/status');if(renderRuns(s))setTimeout(poll,3000);else health()}
+
+$('ubtn').onclick=async()=>{
+  const fs=$('ufiles').files;if(!fs.length)return;
+  const fd=new FormData();fd.append('label',$('ulabel').value);[...fs].forEach(f=>fd.append('files',f));
+  $('ubtn').disabled=true;$('ulog').style.display='block';$('ulog').textContent='Uploading...';
+  try{const r=await j('/api/upload',{method:'POST',body:fd});
+    $('ulog').textContent=`Saved ${r.saved} clip(s) as "${$('ulabel').value}". Pending for retraining: ${r.pending_uploads}.`+
+      (r.rejected.length?'\nRejected: '+r.rejected.map(x=>x.file+' ('+x.reason+')').join('; '):'')+(r.auto_retrain_started?'\nThreshold reached: retraining started automatically.':'');
+    if(r.auto_retrain_started)poll();health();
+  }catch(e){$('ulog').textContent=e.message}
+  $('ubtn').disabled=false;
+};
+$('rbtn').onclick=async()=>{
+  $('rbtn').disabled=true;
+  try{await j('/api/retrain',{method:'POST'});poll()}catch(e){$('rlog').style.display='block';$('rlog').textContent=e.message;$('rbtn').disabled=false}
+};
+
+$('ebtn').onclick=async()=>{
+  $('ebtn').disabled=true;$('eresult').textContent='Evaluating...';
+  try{const r=await j('/api/evaluate');
+    const cm=r.confusion_matrix,names=Object.keys(r.per_class);
+    $('eresult').innerHTML=`<div class="muted" style="margin-bottom:10px">Model v${r.model_version} on ${r.n_test_clips} test clips</div>`+
+    [['Accuracy',pct(r.accuracy)],['Loss',r.loss.toFixed(3)],['Precision (macro)',pct(r.precision_macro)],['Recall (macro)',pct(r.recall_macro)],['F1 (macro)',pct(r.f1_macro)]].map(([k,v])=>`<span class="metric">${k}<b>${v}</b></span>`).join('')+
+    `<h2 style="font-size:15px;margin-top:14px">Per class</h2><table><thead><tr><th>Class</th><th>Precision</th><th>Recall</th><th>F1</th></tr></thead><tbody>`+
+    names.map(n=>`<tr><td>${n}</td><td>${pct(r.per_class[n].precision)}</td><td>${pct(r.per_class[n].recall)}</td><td>${pct(r.per_class[n].f1)}</td></tr>`).join('')+`</tbody></table>`+
+    `<h2 style="font-size:15px;margin-top:14px">Confusion matrix (rows: true, columns: predicted)</h2><div style="overflow-x:auto"><table class="cm"><tr><th></th>${names.map(n=>`<th>${n.slice(0,5)}</th>`).join('')}</tr>`+
+    cm.map((row,i)=>`<tr><th style="text-align:right">${names[i]}</th>${row.map((v,k)=>`<td style="${v?`background:rgba(37,99,235,${Math.min(1,v/8)*.8})`:''};${i===k&&v?'font-weight:700':''}">${v||''}</td>`).join('')}</tr>`).join('')+`</table></div>`;
+  }catch(e){$('eresult').innerHTML=`<span class="bad">${e.message}</span>`}
+  $('ebtn').disabled=false;
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+-r requirements.txt
+locust
+jupyter
+nbconvert
+nbformat
+ipykernel
+pytest
+httpx

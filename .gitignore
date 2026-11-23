@@ -1,0 +1,9 @@
+.venv/
+raw_download/
+__pycache__/
+data/app.db*
+data/uploads/
+models/versions/
+models/current.json
+.ipynb_checkpoints/
+.DS_Store

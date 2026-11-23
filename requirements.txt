@@ -1,0 +1,11 @@
+tensorflow==2.18.1
+numpy<2.1
+librosa==0.11.0
+soundfile
+scikit-learn
+pandas
+matplotlib
+seaborn
+fastapi
+uvicorn[standard]
+python-multipart

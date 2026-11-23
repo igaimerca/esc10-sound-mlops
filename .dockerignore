@@ -1,0 +1,10 @@
+.venv
+raw_download
+notebook
+results
+.git
+**/__pycache__
+data/app.db*
+data/uploads
+models/versions
+models/current.json

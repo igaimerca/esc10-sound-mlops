@@ -1,0 +1,7 @@
+experiment,epochs run,train acc,val acc,val loss,val precision,val recall,val F1
+"e1 adam, no regularisation",38,1.0,0.8875,0.3226,0.9017,0.8875,0.8873
+e2 adam + L2 + dropout + SpecAug,45,0.974,0.9375,0.194,0.9431,0.9375,0.9371
+e3 sgd (nesterov) + reg,35,0.9417,0.925,0.2209,0.9366,0.925,0.9267
+e4 rmsprop + reg,65,0.9844,0.9,0.2101,0.9119,0.9,0.8992
+"e5 adam, lr 3e-4",54,0.9469,0.9125,0.3495,0.9264,0.9125,0.914
+"e6 adam, stronger reg (l2 1e-3, drop 0.5)",64,0.9823,0.9375,0.1975,0.9431,0.9375,0.9381
