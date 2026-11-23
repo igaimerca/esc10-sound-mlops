@@ -38,6 +38,10 @@ canvas{max-height:300px}
 .story{font-size:14px;color:var(--muted);margin:10px 0 0}
 .log{white-space:pre-wrap;font-size:13px;background:var(--bg);border-radius:7px;padding:10px;margin-top:10px}
 footer{text-align:center;color:var(--muted);font-size:13px;padding:20px 20px 32px;border-top:1px solid var(--line)}footer a{color:var(--accent)}
+.drop{border:2px dashed var(--line);border-radius:10px;padding:22px 14px;text-align:center;color:var(--muted);cursor:pointer;transition:border-color .15s,background .15s}
+.drop:hover,.drop:focus-visible,.drop.over{border-color:var(--accent);outline:none}
+.drop.over{background:rgba(37,99,235,.08);color:var(--ink)}
+.drop b{color:var(--ink)}.drop .fname{margin-top:6px;font-size:13px;color:var(--accent);word-break:break-all}
 .cm td{text-align:center;padding:4px 6px}.cm th{font-weight:500}
 </style>
 </head>
@@ -63,7 +67,8 @@ footer{text-align:center;color:var(--muted);font-size:13px;padding:20px 20px 32p
   <div class="card">
     <h2>Classify one clip</h2>
     <p class="sub">Upload a .wav file (first 5 seconds are used). The model returns one of 10 sound classes.</p>
-    <div class="row"><input type="file" id="pfile" accept="audio/*"><button class="primary" id="pbtn">Predict</button></div>
+    <div class="drop" id="pdrop" tabindex="0"><div><b>Drag &amp; drop</b> an audio file here, or click to choose</div><div class="fname" id="pname"></div><input type="file" id="pfile" accept="audio/*" hidden></div>
+    <div class="row" style="margin-top:12px"><button class="primary" id="pbtn">Predict</button></div>
     <audio id="player" controls style="display:none;margin-top:12px;width:100%"></audio>
     <div id="presult" style="margin-top:14px"></div>
   </div>
@@ -89,7 +94,8 @@ footer{text-align:center;color:var(--muted);font-size:13px;padding:20px 20px 32p
     <div class="card">
       <h2>1. Upload new labelled clips</h2>
       <p class="sub">Select several .wav files that all belong to the same class. They are decoded, normalised to 16 kHz mono 5 s, and stored for retraining.</p>
-      <div class="row"><select id="ulabel"></select><input type="file" id="ufiles" accept="audio/*" multiple></div>
+      <div class="row" style="margin-bottom:12px"><label for="ulabel" class="muted">Class of these clips:</label><select id="ulabel"></select></div>
+      <div class="drop" id="udrop" tabindex="0"><div><b>Drag &amp; drop</b> several audio files here, or click to choose</div><div class="fname" id="uname"></div><input type="file" id="ufiles" accept="audio/*" multiple hidden></div>
       <div class="row" style="margin-top:12px"><button class="primary" id="ubtn">Upload</button></div>
       <div class="log" id="ulog" style="display:none"></div>
     </div>
@@ -116,6 +122,26 @@ const fmt=s=>{s=Math.floor(s);const d=Math.floor(s/86400),h=Math.floor(s%86400/3
 const pct=x=>(x*100).toFixed(1)+'%';
 const j=async(u,o)=>{const r=await fetch(u,o);const b=await r.json().catch(()=>({}));if(!r.ok)throw new Error(b.detail||r.statusText);return b};
 let classes=[];
+
+function dropzone(zoneId,inputId,nameId,multi){
+  const z=$(zoneId),i=$(inputId),n=$(nameId);
+  const show=()=>{const f=i.files;n.textContent=!f.length?'':f.length===1?f[0].name:f.length+' files selected'};
+  i.onclick=e=>e.stopPropagation();
+  z.onclick=()=>i.click();
+  z.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();i.click()}};
+  i.onchange=show;
+  ['dragenter','dragover'].forEach(ev=>z.addEventListener(ev,e=>{e.preventDefault();z.classList.add('over')}));
+  ['dragleave','drop'].forEach(ev=>z.addEventListener(ev,e=>{e.preventDefault();z.classList.remove('over')}));
+  z.addEventListener('drop',e=>{
+    const ok=[...e.dataTransfer.files].filter(f=>f.type.startsWith('audio/')||/\.(wav|mp3|flac|ogg|m4a)$/i.test(f.name));
+    if(!ok.length){n.textContent='No audio files in that drop';return}
+    const dt=new DataTransfer();(multi?ok:ok.slice(0,1)).forEach(f=>dt.items.add(f));
+    i.files=dt.files;show();
+  });
+}
+dropzone('pdrop','pfile','pname',false);
+dropzone('udrop','ufiles','uname',true);
+['dragover','drop'].forEach(ev=>window.addEventListener(ev,e=>e.preventDefault()));
 
 document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('#tabs button,section').forEach(e=>e.classList.remove('on'));
